@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2f5d3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Şantiye Cep">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<title>Şantiye Cep</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#f3f4f0;color:#1d2118;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:#2f5d3a;color:#fff;padding:14px 16px;font-size:18px;font-weight:700}
+main{padding:16px;max-width:480px;margin:0 auto}
+.card{background:#fff;border:1px solid #d9dcd3;border-radius:14px;padding:16px;margin:12px 0}
+h2{font-size:18px;margin:0 0 8px} p{margin:0 0 10px;color:#5b6152;font-size:14px}
+label{display:block;font-size:13px;color:#5b6152;margin:12px 0 4px}
+input{width:100%;font:inherit;padding:11px 12px;border:1px solid #c7cbbf;border-radius:10px}
+.btn{display:block;width:100%;min-height:48px;margin-top:14px;border:0;border-radius:12px;background:#2f5d3a;color:#fff;font:inherit;font-weight:600}
+.btn.g{background:#e6e9e1;color:#1d2118}
+.not{padding:10px 12px;border-radius:10px;background:#fff1d6;color:#5c3d00;font-size:14px;margin-top:10px}
+.not.k{background:#fbe9e7;color:#b3261e}
+.telif{text-align:center;color:#8a9080;font-size:11px;margin-top:18px}
+</style>
+</head>
+<body>
+<header>Şantiye Cep</header>
+<main id="m"><div class="card"><p>Açılıyor…</p></div></main>
+<script>
+/* Şantiye Cep · giriş kabuğu.
+   Bu sayfada program YOKTUR. Kullanıcı adı ve şifreyle giriş yapan, telefonu onaylı kullanıcıya program
+   Şantiye Takip'in bulutundan indirilir. İzinsiz kopyalanamaz, çoğaltılamaz. */
+const APP_VER=11; // eski sürümlerin "Yeni sürüm var" çubuğu bu sayıyı okur
+(function(){
+const SB_URL="https://wiqpbbkhjpcbopdywqij.supabase.co",SB_KEY="sb_publishable_KLBn6V3m5y2wwT7Gbynsmw_9xZeM4bU";
+const KOD="/storage/v1/object/authenticated/guncelleme/cep/";
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const trKadi=s=>String(s||"").toLocaleLowerCase("tr").replace(/ç/g,"c").replace(/ğ/g,"g").replace(/ı/g,"i").replace(/ö/g,"o").replace(/ş/g,"s").replace(/ü/g,"u").replace(/\s+/g,".").replace(/[^a-z0-9._-]/g,"");
+const m=document.getElementById("m");
+let otur=LS.get("sc.oturum",null),bekT=null;
+const telif=`<div class="telif">© Şantiye Takip · Şirket içi kullanım içindir. İzinsiz kopyalanamaz.</div>`;
+async function token(){
+  if(!otur)throw new Error("Giriş yapılmamış");
+  if(Date.now()/1000>(otur.expires_at||0)-60){
+    const r=await fetch(SB_URL+"/auth/v1/token?grant_type=refresh_token",{method:"POST",headers:{apikey:SB_KEY,"content-type":"application/json"},body:JSON.stringify({refresh_token:otur.refresh_token})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok){if(r.status>=400&&r.status<500){otur=null;LS.set("sc.oturum",null);}throw new Error("Oturum süresi doldu; yeniden girin.");}
+    otur=j;LS.set("sc.oturum",j);
+  }
+  return otur.access_token;
+}
+function cihazId(){let c=LS.get("sc.cihaz",null);if(!/^[a-f0-9]{32}$/.test(c||"")){const a=new Uint8Array(16);crypto.getRandomValues(a);c=[...a].map(x=>x.toString(16).padStart(2,"0")).join("");LS.set("sc.cihaz",c);}return c;}
+function cihazAd(){const u=navigator.userAgent;const x=u.match(/\(([^)]+)\)/);const t=/iPhone|iPad/.test(u)?"iPhone":/Android/.test(u)?"Android":"Telefon";const d=x?x[1].split(";").map(s=>s.trim()).filter(s=>s&&!/^(Linux|U|wv|K|Mobile)$/i.test(s)&&!/^Android \d/.test(s)).slice(-1)[0]||"":"";return(t+(d?" · "+d:"")).slice(0,80);}
+async function cihazKaydet(){const r=await fetch(SB_URL+"/rest/v1/rpc/cihaz_kaydet",{method:"POST",headers:{apikey:SB_KEY,Authorization:"Bearer "+await token(),"content-type":"application/json"},body:JSON.stringify({p_cihaz:cihazId(),p_tur:"telefon",p_ad:cihazAd()})});if(!r.ok)throw new Error("Cihaz kaydedilemedi ("+r.status+")");return r.json();}
+async function indir(){
+  const H={apikey:SB_KEY,Authorization:"Bearer "+await token()};
+  const s=await fetch(SB_URL+KOD+"surum.json",{headers:H,cache:"no-store"});if(!s.ok)throw Object.assign(new Error("izin"),{durum:s.status});
+  const v=await s.json();
+  const r=await fetch(SB_URL+KOD+"index.html",{headers:H,cache:"no-store"});if(!r.ok)throw Object.assign(new Error("izin"),{durum:r.status});
+  const k={surum:v.surum,html:await r.text()};LS.set("sc.kod",k);return k;
+}
+function calistir(k){clearInterval(bekT);window.__CEP_SURUM=k.surum;document.open();document.write(k.html);document.close();}
+function ciz(icerik){m.innerHTML=icerik+telif;}
+function girisCiz(msg){
+  ciz(`<div class="card"><h2>Giriş</h2><p>Ana kullanıcının (şantiye yöneticisi) size verdiği kullanıcı adı ve şifreyle girin. Bilgisayardaki Şantiye Takip ile aynı bilgilerdir.</p>
+    <label for="k">Kullanıcı adı</label><input id="k" autocapitalize="off" autocomplete="username" spellcheck="false">
+    <label for="p">Şifre</label><input id="p" type="password" autocomplete="current-password">
+    ${msg?`<div class="not k">${esc(msg)}</div>`:""}<button class="btn" id="g">Giriş</button></div>`);
+  const git=async()=>{const k=document.getElementById("k").value.trim(),p=document.getElementById("p").value;if(!k||!p)return girisCiz("Kullanıcı adı ve şifre girin.");
+    document.getElementById("g").disabled=true;document.getElementById("g").textContent="Giriş yapılıyor…";
+    try{const r=await fetch(SB_URL+"/auth/v1/token?grant_type=password",{method:"POST",headers:{apikey:SB_KEY,"content-type":"application/json"},body:JSON.stringify({email:trKadi(k)+"@kullanici.santiye",password:p})});
+      const j=await r.json().catch(()=>({}));const em=j.error_description||j.msg||j.message||"";
+      if(!r.ok)return girisCiz(/invalid/i.test(em)?"Kullanıcı adı ya da şifre yanlış.":/banned/i.test(em)?"Erişiminiz kapatıldı.":em||"Giriş yapılamadı.");
+      otur=j;LS.set("sc.oturum",j);await ac();}
+    catch(e){girisCiz(navigator.onLine?e.message:"İnternet bağlantısı yok.");}};
+  document.getElementById("g").onclick=git;document.getElementById("p").onkeydown=e=>{if(e.key==="Enter")git();};
+}
+function bekleCiz(msg){
+  ciz(`<div class="card"><h2>Bu telefon onay bekliyor</h2><p>Hesabınız daha önce başka bir telefona bağlanmış. Bu telefondan çalışabilmeniz için ana kullanıcının onaylaması gerekiyor.</p>
+    <div class="not">Ana kullanıcıdan isteyin: <b>Şantiye Takip → Kullanıcılar → bu telefonu onayla</b> (${esc(cihazAd())}).</div>
+    <p style="margin-top:10px">${esc(msg||"Onaylanınca bu ekran kendiliğinden açılır.")}</p>
+    <button class="btn" id="t">Tekrar dene</button><button class="btn g" id="c">Çıkış yap</button></div>`);
+  document.getElementById("t").onclick=()=>ac(true);
+  document.getElementById("c").onclick=()=>{clearInterval(bekT);otur=null;LS.set("sc.oturum",null);LS.set("sc.kod",null);girisCiz();};
+  clearInterval(bekT);bekT=setInterval(()=>ac(true),15000);
+}
+async function ac(sessiz){
+  if(!sessiz)ciz(`<div class="card"><p>Program indiriliyor…</p></div>`);
+  try{await cihazKaydet().catch(()=>{});calistir(await indir());}
+  catch(e){
+    if(e.durum===400||e.durum===403)return bekleCiz(sessiz?"Henüz onaylanmadı.":"");
+    if(!otur)return girisCiz(e.message);
+    ciz(`<div class="card"><h2>Program indirilemedi</h2><p>${navigator.onLine?esc(e.message):"İnternet bağlantısı yok. İlk açılış için internet gerekir."}</p><button class="btn" id="t">Tekrar dene</button></div>`);
+    document.getElementById("t").onclick=()=>ac();
+  }
+}
+// açılış: daha önce indirilmiş program ve oturum varsa hemen aç (internet olmasa da çalışır)
+const k=LS.get("sc.kod",null);
+if(location.search.includes("u="))history.replaceState(null,"",location.pathname);
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").then(r=>r.update&&r.update()).catch(()=>{});
+if(k&&k.html&&otur&&!/[?&]u=/.test(document.referrer||""))calistir(k);
+else if(otur)ac();
+else girisCiz();
+})();
+</script>
+</body>
+</html>
