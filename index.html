@@ -64,7 +64,10 @@ async function indir(){
   const r=await fetch(SB_URL+KOD+"index.html",{headers:H,cache:"no-store"});if(!r.ok)throw Object.assign(new Error("izin"),{durum:r.status});
   const k={surum:v.surum,html:await r.text()};LS.set("sc.kod",k);return k;
 }
-function calistir(k){clearInterval(bekT);window.__CEP_SURUM=k.surum;document.open();document.write(k.html);document.close();}
+// Program, kabuk sayfası TAMAMEN yüklendikten sonra açılır. Sayfa yüklenirken document.open() yok sayılır ve
+// program kabuğun içine eklenir (çift başlık, düğmelerin üstünde kalan yazılar → telefonda "basınca açılmıyor").
+function calistir(k){const yap=()=>{clearInterval(bekT);window.__CEP_SURUM=k.surum;document.open();document.write(k.html);document.close();};
+  if(document.readyState==="complete")setTimeout(yap,0);else addEventListener("load",()=>setTimeout(yap,0),{once:true});}
 function ciz(icerik){m.innerHTML=icerik+telif;}
 function girisCiz(msg){
   ciz(`<div class="card"><h2>Giriş</h2><p>Ana kullanıcının (şantiye yöneticisi) size verdiği kullanıcı adı ve şifreyle girin. Bilgisayardaki Şantiye Takip ile aynı bilgilerdir.</p>
